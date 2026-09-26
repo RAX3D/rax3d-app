@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+https://script.google.com/macros/s/AKfycbxhSuXWqvpIr8qmwCLCNZKyzs4HE8AuaL0BtSpi2XkPsah-upg4WFlLWkcQDpSvJwAzNw/exec<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -109,7 +109,7 @@ input[type=number]{direction:ltr;text-align:center}
 <body>
 <div class="wrap">
   <header>
-    <div class="brand">RAX3D<small>حاسبة وفواتير</small></div>
+    <div class="brand">RAX3D<small>حاسبة وفواتير · <span id="roleTag"></span></small></div>
     <div class="num">فاتورة رقم<b id="invNum">—</b><button class="logout" id="logoutBtn">قفل التطبيق</button></div>
   </header>
   <nav>
@@ -134,7 +134,18 @@ input[type=number]{direction:ltr;text-align:center}
     <div id="logList"></div>
   </section>
 
-  <section id="stats"><div id="statList"></div></section>
+  <section id="stats"><div id="statList"></div>
+    <div class="period" id="pinBox">
+      <h3>رموز الدخول (للمدير فقط)</h3>
+      <p style="color:var(--mute);font-size:13px;margin:0 0 12px">اترك الخانة فاضية إذا ما تبي تغيّرها. أرقام فقط، من 4 إلى 12 خانة.</p>
+      <div class="grid g2">
+        <div><label for="newAdmin">رمز المدير الجديد</label><input id="newAdmin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>
+        <div><label for="newPartner">رمز الشريك الجديد</label><input id="newPartner" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>
+      </div>
+      <p class="err" id="pinMsg" style="margin:10px 0 0"></p>
+      <button class="save" id="pinSave" style="margin-top:8px;font-size:16px;padding:12px">حفظ الرموز</button>
+    </div>
+  </section>
 </div>
 
 <div class="bar hide" id="bar"><div class="wrap">
@@ -342,7 +353,7 @@ function renderStats() {
 function load() {
   google.script.run
     .withSuccessHandler(d => {
-      DATA = d; S = d.settings;
+      DATA = d; S = d.settings; applyRole(d.role);
       $('invNum').textContent = d.nextNum;
       if ($('boot')) { $('boot').remove(); $('new').classList.add('on'); $('bar').classList.remove('hide'); resetForm(); }
       else updateTotals();
@@ -354,6 +365,35 @@ function load() {
     })
     .getAppData(PIN);
 }
+function applyRole(role) {
+  const admin = role === 'admin';
+  const statsBtn = document.querySelector('nav button[data-tab="stats"]');
+  statsBtn.style.display = admin ? '' : 'none';
+  if (!admin && $('stats').classList.contains('on')) document.querySelector('nav button[data-tab="new"]').click();
+  $('roleTag').textContent = admin ? 'المدير' : 'الشريك';
+}
+$('pinSave').onclick = () => {
+  const a = $('newAdmin').value.trim(), b = $('newPartner').value.trim(), msg = $('pinMsg');
+  msg.style.color = 'var(--bad)';
+  if (!a && !b) { msg.textContent = 'اكتب رمز جديد واحد على الأقل'; return; }
+  if ((a && !/^[0-9]{4,12}$/.test(a)) || (b && !/^[0-9]{4,12}$/.test(b))) { msg.textContent = 'الرمز لازم يكون أرقام من 4 إلى 12 خانة'; return; }
+  if (a && b && a === b) { msg.textContent = 'الرمزين لازم يكونون مختلفين'; return; }
+  const btn = $('pinSave'); btn.disabled = true; msg.textContent = '';
+  google.script.run
+    .withSuccessHandler(() => {
+      btn.disabled = false;
+      if (a) savePin(a);
+      $('newAdmin').value = ''; $('newPartner').value = '';
+      msg.style.color = 'var(--good)';
+      msg.textContent = 'تم الحفظ ✔' + (b ? ' — أعطِ الشريك رمزه الجديد' : '');
+    })
+    .withFailureHandler(err => {
+      btn.disabled = false;
+      if (pinError(err)) return;
+      msg.textContent = 'لم تُحفظ: ' + ((err && err.message) || err);
+    })
+    .changePins({ admin: a, partner: b }, PIN);
+};
 function tryPin() {
   const v = $('pinIn').value.trim();
   if (!v) { $('pinErr').textContent = 'اكتب الرمز'; return; }
