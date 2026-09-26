@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>RAX3D</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RAX3D">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#000; --panel:#141414; --line:#2a2a2a; --field:#1d1d1d;
+  --gold:#E0B64A; --gold-d:#C9A227; --text:#f2efe6; --mute:#9a968c; --good:#7fcf8a; --bad:#ff7b6b;
+  --r-lg:18px; --r-sm:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--ink);color:var(--text);
+  font-family:"IBM Plex Sans Arabic",Tahoma,Arial,sans-serif;font-size:16px;line-height:1.5}
+body{padding:env(safe-area-inset-top,0) 0 calc(150px + env(safe-area-inset-bottom,0))}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 2px 10px}
+.brand{font-weight:700;font-size:26px;letter-spacing:.06em;color:var(--gold);direction:ltr}
+.brand small{display:block;font-size:11px;letter-spacing:.02em;color:var(--mute);font-weight:400}
+.num{font-size:14px;color:var(--mute);text-align:left}
+.num b{display:block;color:var(--text);font-size:20px}
+
+nav{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:16px;position:sticky;top:env(safe-area-inset-top,0);z-index:5}
+nav button{flex:1;border:0;background:none;padding:9px 4px;border-radius:999px;font-size:15px;color:var(--mute);cursor:pointer}
+nav button.on{background:var(--gold);color:#000;font-weight:700}
+section{display:none} section.on{display:block}
+
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
+input,select{width:100%;background:var(--field);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px;font-size:16px;outline:none}
+input:focus,select:focus{border-color:var(--gold)}
+input[type=number]{direction:ltr;text-align:center}
+.grid{display:grid;gap:10px}
+.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px}.g3{grid-template-columns:1fr 1fr 1fr}
+
+.client{display:grid;gap:10px;margin-bottom:18px}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px;margin-bottom:12px}
+.item-top{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.item-top input{flex:1}
+.x{border:0;background:none;color:var(--mute);font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.seg button{flex:1;border:0;background:var(--field);padding:11px 0;cursor:pointer;color:var(--mute)}
+.seg button.on{background:var(--gold-d);color:#000;font-weight:700}
+.calc{display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:14px;color:var(--mute)}
+.calc b{color:var(--text);font-weight:500}
+.add{width:100%;border:1px dashed var(--gold-d);background:none;color:var(--gold);padding:13px;border-radius:var(--r-lg);font-size:16px;cursor:pointer}
+.add:disabled{opacity:.35}
+
+.bar{position:fixed;left:0;right:0;bottom:0;background:#0a0a0a;border-top:2px solid var(--gold-d);
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0));z-index:10}
+.bar .wrap{padding:0}
+.sum{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px}
+.sum .big{font-size:34px;font-weight:700;color:var(--gold);line-height:1;direction:ltr}
+.sum .big span{font-size:15px;color:var(--mute);font-weight:400;margin-right:4px}
+.sum .sub{font-size:13px;color:var(--mute);text-align:right}
+.sum .sub b{color:var(--good);font-weight:500}
+.save{width:100%;border:0;border-radius:14px;background:var(--gold);color:#000;font-weight:700;font-size:18px;padding:14px;cursor:pointer}
+.save:disabled{opacity:.5}
+.bar.hide{display:none}
+
+.search{margin-bottom:12px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:10px}
+.row-h{display:flex;justify-content:space-between;align-items:baseline}
+.row-h b{font-size:17px}
+.row-h .amt{color:var(--gold);font-weight:700;direction:ltr}
+.row p{margin:4px 0 8px;font-size:13px;color:var(--mute);overflow-wrap:anywhere}
+.row .meta{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mute)}
+.pdf{border:1px solid var(--gold-d);color:var(--gold);background:none;border-radius:999px;padding:5px 14px;font-size:13px;text-decoration:none}
+.empty{text-align:center;color:var(--mute);padding:40px 10px}
+
+.period{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px;margin-bottom:10px}
+.period h3{margin:0 0 10px;font-size:15px;color:var(--gold);font-weight:500}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+.kv div{font-size:12px;color:var(--mute)}
+.kv div b{display:block;font-size:17px;color:var(--text);font-weight:500;direction:ltr;text-align:right}
+
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheet.on{display:flex}
+.sheet .box{background:var(--panel);border-top:2px solid var(--gold);border-radius:22px 22px 0 0;width:100%;max-width:560px;
+  padding:24px 18px calc(24px + env(safe-area-inset-bottom,0));text-align:center}
+.sheet h2{margin:0 0 4px;font-size:21px}
+.sheet .tot{font-size:38px;color:var(--gold);font-weight:700;margin:6px 0 16px;direction:ltr}
+.sheet a.save,.sheet button{display:block;text-decoration:none;margin-top:10px}
+.ghost{width:100%;background:none;border:1px solid var(--line);border-radius:14px;padding:13px;color:var(--text);font-size:16px;cursor:pointer}
+.err{color:var(--bad);font-size:14px;min-height:20px;margin:0 0 6px;text-align:center}
+.loading{text-align:center;color:var(--mute);padding:60px 0}
+.lock{position:fixed;inset:0;background:var(--ink);z-index:30;display:none;align-items:center;justify-content:center;padding:24px}
+.lock.on{display:flex}
+.lock .box{width:100%;max-width:340px;text-align:center}
+.lock .brand{font-size:34px;margin-bottom:6px}
+.lock p{color:var(--mute);margin:0 0 22px}
+.lock input{text-align:center;font-size:26px;letter-spacing:.4em;direction:ltr;margin-bottom:12px}
+#pinErr{color:var(--bad);margin:0 0 14px;min-height:22px}
+.logout{border:0;background:none;color:var(--mute);font-size:12px;padding:0;margin-top:4px;cursor:pointer;text-decoration:underline}
+@media (prefers-reduced-motion:no-preference){.sheet .box{animation:up .25s ease-out}@keyframes up{from{transform:translateY(40px);opacity:0}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">RAX3D<small>حاسبة وفواتير</small></div>
+    <div class="num">فاتورة رقم<b id="invNum">—</b><button class="logout" id="logoutBtn">قفل التطبيق</button></div>
+  </header>
+  <nav>
+    <button class="on" data-tab="new">فاتورة جديدة</button>
+    <button data-tab="log">السجل</button>
+    <button data-tab="stats">الإحصائيات</button>
+  </nav>
+
+  <div id="boot" class="loading">جاري تحميل البيانات…</div>
+
+  <section id="new">
+    <div class="client grid g2">
+      <div><label for="client">اسم العميل</label><input id="client" autocomplete="off"></div>
+      <div><label for="phone">الجوال</label><input id="phone" inputmode="tel" autocomplete="off" style="direction:ltr;text-align:right"></div>
+    </div>
+    <div id="items"></div>
+    <button class="add" id="addBtn">+ إضافة قطعة</button>
+  </section>
+
+  <section id="log">
+    <input class="search" id="q" placeholder="ابحث باسم العميل أو الجوال أو رقم الفاتورة">
+    <div id="logList"></div>
+  </section>
+
+  <section id="stats"><div id="statList"></div></section>
+</div>
+
+<div class="bar hide" id="bar"><div class="wrap">
+  <div class="sum">
+    <div class="sub">الخصم <span id="tDisc">0</span><br>صافي الربح <b id="tProfit">0</b></div>
+    <div class="big" id="tTotal">0<span>ريال</span></div>
+  </div>
+  <p class="err" id="err"></p>
+  <button class="save" id="saveBtn">حفظ الفاتورة وإنشاء PDF</button>
+</div></div>
+
+<div class="lock" id="lock"><div class="box">
+  <div class="brand">RAX3D</div>
+  <p>اكتب رمز الدخول</p>
+  <input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="12">
+  <p class="err" id="pinErr"></p>
+  <button class="save" id="pinBtn">دخول</button>
+</div></div>
+
+<div class="sheet" id="done"><div class="box">
+  <h2 id="doneTitle"></h2>
+  <div class="tot" id="doneTotal"></div>
+  <a class="save" id="donePdf" target="_blank">فتح الـ PDF</a>
+  <button class="ghost" id="doneNew">فاتورة جديدة</button>
+</div></div>
+
+<script>
+// ⚠️ الصق هنا رابط Web app من Apps Script (ينتهي بـ /exec) بين العلامتين
+const API_URL = 'https://script.google.com/macros/s/AKfycbxhSuXWqvpIr8qmwCLCNZKyzs4HE8AuaL0BtSpi2XkPsah-upg4WFlLWkcQDpSvJwAzNw/exec';
+
+// محوّل: يرسل الطلبات للجدول عبر الإنترنت بدون حسابات Google
+function callApi_(name, args, ctx) {
+  const body = name === 'getAppData' ? { action: name, pin: args[0] }
+             : { action: name, data: args[0], pin: args[1] };
+  fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' })
+    .then(r => r.json())
+    .then(j => { if (j.ok) ctx.ok && ctx.ok(j.result); else ctx.fail && ctx.fail(new Error(j.error)); })
+    .catch(() => ctx.fail && ctx.fail(new Error('تعذّر الاتصال — تأكد من الإنترنت ومن رابط API_URL')));
+}
+function makeRunner_() {
+  const ctx = { ok: null, fail: null };
+  const p = new Proxy({}, { get(_, name) {
+    if (name === 'withSuccessHandler') return f => { ctx.ok = f; return p; };
+    if (name === 'withFailureHandler') return f => { ctx.fail = f; return p; };
+    return (...args) => callApi_(name, args, ctx);
+  }});
+  return p;
+}
+window.google = { script: {} };
+Object.defineProperty(window.google.script, 'run', { get: makeRunner_ });
+</script>
+<script>
+let S = null, DATA = null, items = [];
+let PIN = '';
+try { PIN = localStorage.getItem('rax3d_pin') || ''; } catch (e) {}
+function savePin(v) { PIN = v; try { v ? localStorage.setItem('rax3d_pin', v) : localStorage.removeItem('rax3d_pin'); } catch (e) {} }
+function showLock(msg) {
+  $('lock').classList.add('on'); $('pinErr').textContent = msg || ''; $('pinIn').value = '';
+  setTimeout(() => $('pinIn').focus(), 50);
+}
+function pinError(err) {
+  const m = String((err && err.message) || err);
+  if (m.indexOf('LOCKED') >= 0) { savePin(''); showLock('محاولات كثيرة خاطئة، جرّب بعد 15 دقيقة'); return true; }
+  if (m.indexOf('BAD_PIN') >= 0) { savePin(''); showLock(PIN ? '' : 'الرمز غير صحيح'); return true; }
+  return false;
+}
+const $ = id => document.getElementById(id);
+const r2 = v => Math.round(v * 100) / 100;
+const fmt = v => { const n = r2(v); return Number.isInteger(n) ? String(n) : n.toFixed(2); };
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function calcItem(it) {
+  const w = +it.w || 0; if (!w) return null;
+  const q = +it.q || 1;
+  const cost = w * S.spool / S.spoolW * (1 + S.waste) + ((+it.h || 0) + (+it.m || 0) / 60 + (+it.sec || 0) / 3600) * S.run + S.pack;
+  const unit = Math.ceil(r2(cost * (it.type === 'مجموعة' ? S.multSet : S.multOne)) - 1e-9);
+  const disc = r2(unit * q * (+it.disc || 0) / 100);
+  const total = unit * q - disc;
+  return { cost, unit, disc, total, profit: total - cost * q };
+}
+
+function newItem() { return { desc: '', w: '', h: '', m: '', sec: '', type: 'واحدة', q: 1, disc: 0 }; }
+
+function renderItems() {
+  $('items').innerHTML = items.map((it, i) => `
+    <div class="item" data-i="${i}">
+      <div class="item-top">
+        <input data-k="desc" value="${esc(it.desc)}" placeholder="وصف القطعة">
+        ${items.length > 1 ? `<button class="x" data-del="${i}" aria-label="حذف القطعة">×</button>` : ''}
+      </div>
+      <div class="grid g4">
+        <div><label>الوزن (جم)</label><input type="number" inputmode="decimal" data-k="w" value="${it.w}"></div>
+        <div><label>ساعات</label><input type="number" inputmode="numeric" data-k="h" value="${it.h}"></div>
+        <div><label>دقائق</label><input type="number" inputmode="numeric" data-k="m" value="${it.m}"></div>
+        <div><label>ثواني</label><input type="number" inputmode="numeric" data-k="sec" value="${it.sec}"></div>
+      </div>
+      <div class="grid g3" style="margin-top:10px;grid-template-columns:1.4fr 1fr 1fr">
+        <div><label>النوع</label><div class="seg">
+          <button data-type="واحدة" class="${it.type === 'واحدة' ? 'on' : ''}">واحدة</button>
+          <button data-type="مجموعة" class="${it.type === 'مجموعة' ? 'on' : ''}">مجموعة</button></div></div>
+        <div><label>العدد</label><input type="number" inputmode="numeric" data-k="q" value="${it.q}"></div>
+        <div><label>خصم %</label><input type="number" inputmode="decimal" data-k="disc" value="${it.disc}"></div>
+      </div>
+      <div class="calc" id="c${i}"></div>
+    </div>`).join('');
+  $('addBtn').disabled = items.length >= 10;
+  updateTotals();
+}
+
+function updateTotals() {
+  let t = 0, d = 0, p = 0;
+  items.forEach((it, i) => {
+    const c = calcItem(it), el = $('c' + i);
+    if (!c) { el.innerHTML = '<span>اكتب الوزن لحساب السعر</span>'; return; }
+    el.innerHTML = `<span>سعر الوحدة <b>${fmt(c.unit)}</b></span><span>الإجمالي <b>${fmt(c.total)}</b></span><span>الربح <b>${fmt(c.profit)}</b></span>`;
+    t += c.total; d += c.disc; p += c.profit;
+  });
+  $('tTotal').firstChild.nodeValue = fmt(t);
+  $('tDisc').textContent = fmt(d);
+  $('tProfit').textContent = fmt(p);
+}
+
+$('items').addEventListener('input', e => {
+  const k = e.target.dataset.k; if (!k) return;
+  const i = +e.target.closest('.item').dataset.i;
+  items[i][k] = e.target.value; updateTotals();
+});
+$('items').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const i = +b.closest('.item').dataset.i;
+  if (b.dataset.del !== undefined) { items.splice(i, 1); renderItems(); }
+  else if (b.dataset.type) { items[i].type = b.dataset.type; renderItems(); }
+});
+$('addBtn').onclick = () => { if (items.length < 10) { items.push(newItem()); renderItems(); } };
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
+  $('bar').classList.toggle('hide', b.dataset.tab !== 'new');
+  window.scrollTo(0, 0);
+});
+
+$('saveBtn').onclick = () => {
+  $('err').textContent = '';
+  const valid = items.filter(it => +it.w > 0);
+  if (!valid.length) { $('err').textContent = 'اكتب وزن قطعة واحدة على الأقل'; return; }
+  if (valid.some(it => !String(it.desc).trim())) { $('err').textContent = 'اكتب وصفاً لكل قطعة'; return; }
+  const btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'جاري الحفظ وإنشاء الـ PDF…';
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false; btn.textContent = 'حفظ الفاتورة وإنشاء PDF';
+      $('doneTitle').textContent = 'تم حفظ الفاتورة رقم ' + res.num;
+      $('doneTotal').textContent = fmt(res.total) + ' ريال';
+      const a = $('donePdf');
+      if (res.pdfUrl) { a.href = res.pdfUrl; a.style.display = 'block'; } else a.style.display = 'none';
+      $('done').classList.add('on');
+      resetForm(); load();
+    })
+    .withFailureHandler(err => {
+      btn.disabled = false; btn.textContent = 'حفظ الفاتورة وإنشاء PDF';
+      if (pinError(err)) return;
+      $('err').textContent = 'لم تُحفظ الفاتورة: ' + (err.message || err);
+    })
+    .saveFromApp({ client: $('client').value, phone: $('phone').value, items: valid }, PIN);
+};
+$('doneNew').onclick = () => $('done').classList.remove('on');
+
+function resetForm() { $('client').value = ''; $('phone').value = ''; items = [newItem()]; renderItems(); }
+
+function renderLog() {
+  const q = $('q').value.trim().toLowerCase();
+  const rows = DATA.log.slice().reverse().filter(r => !q ||
+    (r.client + ' ' + r.phone + ' ' + r.num + ' ' + r.desc).toLowerCase().includes(q));
+  $('logList').innerHTML = rows.length ? rows.map(r => `
+    <div class="row">
+      <div class="row-h"><b>${esc(r.client || 'بدون اسم')}</b><span class="amt">${fmt(r.total)} ريال</span></div>
+      <p>${esc(r.desc)}</p>
+      <div class="meta"><span>رقم ${esc(r.num)} &nbsp; ${esc(r.date)}${r.phone ? ' &nbsp; ' + esc(r.phone) : ''}</span>
+      ${r.pdf ? `<a class="pdf" href="${esc(r.pdf)}" target="_blank">PDF</a>` : ''}</div>
+    </div>`).join('')
+    : `<div class="empty">${q ? 'لا توجد فاتورة تطابق البحث' : 'لا توجد فواتير بعد. احفظ أول فاتورة من تبويب «فاتورة جديدة».'}</div>`;
+}
+$('q').oninput = renderLog;
+
+function renderStats() {
+  const t = DATA.today, [y, m] = t.split('-');
+  const d0 = new Date(t + 'T00:00:00'); d0.setDate(d0.getDate() - 6);
+  const wk = d0.getFullYear() + '-' + String(d0.getMonth() + 1).padStart(2, '0') + '-' + String(d0.getDate()).padStart(2, '0');
+  const periods = [
+    ['اليوم', r => r.date === t],
+    ['آخر 7 أيام', r => r.date >= wk && r.date <= t],
+    ['هذا الشهر', r => r.date.startsWith(y + '-' + m)],
+    ['هذه السنة', r => r.date.startsWith(y)],
+    ['الإجمالي', () => true]
+  ];
+  $('statList').innerHTML = periods.map(([name, f]) => {
+    const rs = DATA.log.filter(f), s = k => rs.reduce((a, r) => a + r[k], 0);
+    return `<div class="period"><h3>${name}</h3><div class="kv">
+      <div>الفواتير<b>${rs.length}</b></div><div>القطع<b>${s('qty')}</b></div><div>المبيعات<b>${fmt(s('total'))}</b></div>
+      <div>الخصومات<b>${fmt(s('disc'))}</b></div><div>صافي الربح<b>${fmt(s('profit'))}</b></div>
+      <div>متوسط الفاتورة<b>${rs.length ? fmt(s('total') / rs.length) : 0}</b></div></div></div>`;
+  }).join('');
+}
+
+function load() {
+  google.script.run
+    .withSuccessHandler(d => {
+      DATA = d; S = d.settings;
+      $('invNum').textContent = d.nextNum;
+      if ($('boot')) { $('boot').remove(); $('new').classList.add('on'); $('bar').classList.remove('hide'); resetForm(); }
+      else updateTotals();
+      renderLog(); renderStats();
+    })
+    .withFailureHandler(err => {
+      if (pinError(err)) { if ($('boot')) $('boot').textContent = ''; return; }
+      if ($('boot')) $('boot').textContent = 'تعذّر تحميل البيانات: ' + (err.message || err);
+    })
+    .getAppData(PIN);
+}
+function tryPin() {
+  const v = $('pinIn').value.trim();
+  if (!v) { $('pinErr').textContent = 'اكتب الرمز'; return; }
+  $('pinBtn').disabled = true; $('pinErr').textContent = '';
+  google.script.run
+    .withSuccessHandler(d => { $('pinBtn').disabled = false; savePin(v); $('lock').classList.remove('on'); load(); })
+    .withFailureHandler(err => {
+      $('pinBtn').disabled = false;
+      const m = String((err && err.message) || err);
+      $('pinErr').textContent = m.indexOf('LOCKED') >= 0 ? 'محاولات كثيرة خاطئة، جرّب بعد 15 دقيقة' : m.indexOf('BAD_PIN') >= 0 ? 'الرمز غير صحيح' : 'تعذّر الاتصال: ' + m;
+    })
+    .getAppData(v);
+}
+$('pinBtn').onclick = tryPin;
+$('pinIn').addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+$('logoutBtn').onclick = () => { savePin(''); showLock(''); };
+if (PIN) load(); else { $('boot').textContent = ''; showLock(''); }
+</script>
+</body>
+</html>
