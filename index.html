@@ -56,6 +56,25 @@ input[type=number]{direction:ltr;text-align:center}
 .calc b{color:var(--text);font-weight:500}
 .add{width:100%;border:1px dashed var(--gold-d);background:none;color:var(--gold);padding:13px;border-radius:var(--r-lg);font-size:16px;cursor:pointer}
 .add:disabled{opacity:.35}
+.item.filled{border-color:var(--gold);transition:border-color .2s}
+.goal{background:linear-gradient(135deg,#1a1405,#0d0d0d);border:1px solid var(--gold-d);border-radius:var(--r-lg);padding:14px;margin-bottom:16px}
+.goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.goal-top b{color:var(--gold);font-size:18px;direction:ltr}
+.goal-top span{font-size:13px;color:var(--mute)}
+.goal-bar{height:10px;background:#262626;border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.goal-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold-d),var(--gold));border-radius:99px;transition:width .6s}
+.goal-sub{display:flex;justify-content:space-between;font-size:12px;color:var(--mute)}
+.goal-sub b{color:var(--text);font-weight:500}
+.party{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;text-align:center}
+.party.on{display:flex}
+.party canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.party .box{position:relative;max-width:360px}
+.party .cup{font-size:72px;line-height:1}
+.party h2{color:var(--gold);font-size:26px;margin:12px 0 6px}
+.party .amt{font-size:40px;font-weight:700;color:var(--text);direction:ltr;margin:4px 0}
+.party p{color:var(--mute);margin:6px 0 18px;line-height:1.7}
+.party p b{color:var(--gold)}
+@media (prefers-reduced-motion:no-preference){.party.on .cup{animation:pop .6s ease-out}@keyframes pop{0%{transform:scale(.2) rotate(-20deg)}70%{transform:scale(1.2)}100%{transform:scale(1)}}}
 
 .bar{position:fixed;left:0;right:0;bottom:0;background:#0a0a0a;border-top:2px solid var(--gold-d);
   padding:12px 14px calc(12px + env(safe-area-inset-bottom,0));z-index:10}
@@ -121,11 +140,17 @@ input[type=number]{direction:ltr;text-align:center}
   <div id="boot" class="loading">جاري تحميل البيانات…</div>
 
   <section id="new">
+    <div class="goal" id="goalCard" style="display:none">
+      <div class="goal-top"><span>🎯 هدف المبيعات</span><b id="goalAmt"></b></div>
+      <div class="goal-bar"><i id="goalBar"></i></div>
+      <div class="goal-sub"><span>المحقق <b id="goalSales"></b></span><span>باقي <b id="goalLeft"></b> ريال</span></div>
+    </div>
     <div class="client grid g2">
       <div><label for="client">اسم العميل</label><input id="client" autocomplete="off"></div>
       <div><label for="phone">الجوال</label><input id="phone" inputmode="tel" autocomplete="off" style="direction:ltr;text-align:right"></div>
     </div>
     <div id="items"></div>
+    <datalist id="catList"></datalist>
     <button class="add" id="addBtn">+ إضافة قطعة</button>
   </section>
 
@@ -165,6 +190,14 @@ input[type=number]{direction:ltr;text-align:center}
   <button class="save" id="pinBtn">دخول</button>
 </div></div>
 
+<div class="party" id="party"><canvas id="confetti"></canvas><div class="box">
+  <div class="cup">🏆</div>
+  <h2>مبروك يا RAX3D&rlm;!</h2>
+  <div class="amt" id="partyAmt"></div>
+  <p>وصلنا الهدف بمبيعات فوق <b id="partyReached"></b> ريال 👏<br><bdi dir="ltr">RsHoOoD</bdi> فخور فيك، كل قطعة طبعتها وكل جهد فعلته وصّلتنا لرأس المال، ومنها إلى <bdi dir="ltr" style="white-space:nowrap">Financial freedom</bdi> ✨<br>الهدف الجديد: <b id="partyNext"></b> ريال 🚀</p>
+  <button class="save" id="partyBtn">يلا نكمل 💪</button>
+</div></div>
+
 <div class="sheet" id="done"><div class="box">
   <h2 id="doneTitle"></h2>
   <div class="tot" id="doneTotal"></div>
@@ -174,7 +207,7 @@ input[type=number]{direction:ltr;text-align:center}
 
 <script>
 // ⚠️ الصق هنا رابط Web app من Apps Script (ينتهي بـ /exec) بين العلامتين
-const API_URL = 'https://script.google.com/macros/s/AKfycbxhSuXWqvpIr8qmwCLCNZKyzs4HE8AuaL0BtSpi2XkPsah-upg4WFlLWkcQDpSvJwAzNw/exec';
+const API_URL = 'https://rax3d.github.io/rax3d-app/';
 
 // محوّل: يرسل الطلبات للجدول عبر الإنترنت بدون حسابات Google
 function callApi_(name, args, ctx) {
@@ -233,7 +266,7 @@ function renderItems() {
   $('items').innerHTML = items.map((it, i) => `
     <div class="item" data-i="${i}">
       <div class="item-top">
-        <input data-k="desc" value="${esc(it.desc)}" placeholder="وصف القطعة">
+        <input data-k="desc" value="${esc(it.desc)}" placeholder="وصف القطعة" list="catList" autocomplete="off">
         ${items.length > 1 ? `<button class="x" data-del="${i}" aria-label="حذف القطعة">×</button>` : ''}
       </div>
       <div class="grid g4">
@@ -268,10 +301,27 @@ function updateTotals() {
   $('tProfit').textContent = fmt(p);
 }
 
+const normName = t => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase();
+function findCat(desc) {
+  const n = normName(desc);
+  return n && DATA && DATA.catalog ? DATA.catalog.find(c => normName(c.desc) === n) : null;
+}
+function renderCatalog() {
+  $('catList').innerHTML = ((DATA && DATA.catalog) || []).map(c => `<option value="${esc(c.desc)}"></option>`).join('');
+}
 $('items').addEventListener('input', e => {
   const k = e.target.dataset.k; if (!k) return;
-  const i = +e.target.closest('.item').dataset.i;
-  items[i][k] = e.target.value; updateTotals();
+  const card = e.target.closest('.item'), i = +card.dataset.i;
+  items[i][k] = e.target.value;
+  if (k === 'desc') {
+    const c = findCat(e.target.value);
+    if (c) {
+      const vals = { w: c.w, h: c.h || '', m: c.m || '', sec: c.sec || '' };
+      Object.keys(vals).forEach(f => { items[i][f] = vals[f]; card.querySelector('[data-k="' + f + '"]').value = vals[f]; });
+      card.classList.add('filled'); setTimeout(() => card.classList.remove('filled'), 700);
+    }
+  }
+  updateTotals();
 });
 $('items').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -302,6 +352,7 @@ $('saveBtn').onclick = () => {
       const a = $('donePdf');
       if (res.pdfUrl) { a.href = res.pdfUrl; a.style.display = 'block'; } else a.style.display = 'none';
       $('done').classList.add('on');
+      if (res.milestone) { seenGoal(res.milestone.reached); setTimeout(() => celebrate(res.milestone), 400); }
       resetForm(); load();
     })
     .withFailureHandler(err => {
@@ -353,7 +404,7 @@ function renderStats() {
 function load() {
   google.script.run
     .withSuccessHandler(d => {
-      DATA = d; S = d.settings; applyRole(d.role);
+      DATA = d; S = d.settings; applyRole(d.role); renderCatalog(); renderGoal(d.goal); checkMilestone(d.goal);
       $('invNum').textContent = d.nextNum;
       if ($('boot')) { $('boot').remove(); $('new').classList.add('on'); $('bar').classList.remove('hide'); resetForm(); }
       else updateTotals();
@@ -394,6 +445,47 @@ $('pinSave').onclick = () => {
     })
     .changePins({ admin: a, partner: b }, PIN);
 };
+const fmtN = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+function renderGoal(g) {
+  const card = $('goalCard');
+  if (!g) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const pct = Math.max(0, Math.min(100, (g.sales - g.prev) / (g.goal - g.prev) * 100));
+  $('goalAmt').textContent = fmtN(g.goal) + ' ريال';
+  $('goalBar').style.width = pct.toFixed(1) + '%';
+  $('goalSales').textContent = fmtN(g.sales);
+  $('goalLeft').textContent = fmtN(g.remaining);
+}
+function celebrate(m) {
+  $('partyAmt').textContent = fmtN(m.reached) + ' ريال';
+  $('partyReached').textContent = fmtN(m.reached);
+  $('partyNext').textContent = fmtN(m.next);
+  $('party').classList.add('on');
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = $('confetti'), ctx = cv.getContext('2d');
+  const W = cv.width = innerWidth, H = cv.height = innerHeight;
+  const cols = ['#E0B64A', '#C9A227', '#fff3c4', '#ffffff', '#b8860b'];
+  const ps = Array.from({ length: 160 }, () => ({ x: Math.random() * W, y: -20 - Math.random() * H, r: 4 + Math.random() * 6,
+    vy: 2 + Math.random() * 3, vx: -1.5 + Math.random() * 3, a: Math.random() * 6, va: -.2 + Math.random() * .4, c: cols[Math.floor(Math.random() * cols.length)] }));
+  const t0 = Date.now();
+  (function tick() {
+    ctx.clearRect(0, 0, W, H);
+    ps.forEach(p => { p.x += p.vx; p.y += p.vy; p.a += p.va;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); ctx.restore();
+      if (p.y > H + 20 && Date.now() - t0 < 4000) { p.y = -20; p.x = Math.random() * W; } });
+    if (Date.now() - t0 < 7000 && $('party').classList.contains('on')) requestAnimationFrame(tick); else ctx.clearRect(0, 0, W, H);
+  })();
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+}
+$('partyBtn').onclick = () => $('party').classList.remove('on');
+// احتفال على كل جهاز لم يشاهد الإنجاز بعد (حتى لو الفاتورة انحفظت من جهاز ثاني)
+function seenGoal(v) { try { if (v === undefined) return localStorage.getItem('rax3d_goal_seen'); localStorage.setItem('rax3d_goal_seen', String(v)); } catch (e) { return null; } }
+function checkMilestone(g) {
+  if (!g) return;
+  const seen = seenGoal();
+  if (seen === null || seen === undefined) { seenGoal(g.prev); return; }
+  if (g.prev > Number(seen)) { seenGoal(g.prev); celebrate({ reached: g.prev, next: g.goal }); }
+}
 function tryPin() {
   const v = $('pinIn').value.trim();
   if (!v) { $('pinErr').textContent = 'اكتب الرمز'; return; }
