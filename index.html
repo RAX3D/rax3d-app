@@ -415,7 +415,7 @@ textarea{width:100%;background:var(--field);border:1px solid var(--line);border-
 <div class="toast" id="toast" hidden></div>
 
 <script>
-const APP_VERSION = '27';
+const APP_VERSION = '28';
 // ================= RAX3D — v25: حسابين + الدعم الفني + تحديث تلقائي =================
 // كل البيانات محفوظة داخل الجوال. لا Google ولا إيميل.
 const DB_KEY = 'rax3d_db';
@@ -582,11 +582,29 @@ function mailTo() {   // إيميل الإشعارات: عند الدعم الف
   const db = loadDb();
   return db.role === 'partner' ? ((db.shared && db.shared.mail) || DEF_MAIL) : (db.recMail || DEF_MAIL);
 }
+function postFileMail(to, all, file) {   // إرسال ملف مرفق: نموذج حقيقي داخل إطار مخفي
+  return new Promise((resolve, reject) => {
+    if (navigator.onLine === false) { reject(new Error('ما فيه اتصال بالإنترنت')); return; }
+    const id = 'mf' + Date.now(), fr = document.createElement('iframe'), fm = document.createElement('form');
+    fr.name = id; fr.style.display = 'none';
+    fm.method = 'POST'; fm.enctype = 'multipart/form-data'; fm.target = id; fm.acceptCharset = 'UTF-8'; fm.style.display = 'none';
+    fm.action = 'https://formsubmit.co/' + encodeURIComponent(to);
+    Object.keys(all).forEach(k => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = String(all[k]); fm.appendChild(i); });
+    const fi = document.createElement('input'); fi.type = 'file'; fi.name = 'attachment';
+    try { const dt = new DataTransfer(); dt.items.add(new File([file.blob], file.name, { type: file.blob.type || 'application/octet-stream' })); fi.files = dt.files; }
+    catch (e) { reject(new Error('الجوال ما يدعم إرفاق الملفات')); return; }
+    fm.appendChild(fi); document.body.appendChild(fr); document.body.appendChild(fm);
+    let done = false; const fin = () => { if (done) return; done = true; resolve('sent'); setTimeout(() => { fr.remove(); fm.remove(); }, 1500); };
+    fr.onload = fin; setTimeout(fin, 30000);
+    fm.submit();
+  });
+}
 async function sendMail(to, fields, file) {   // إرسال إيميل عبر خدمة FormSubmit المجانية (مع مرفق اختياري)
   const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), file ? 45000 : 15000);
   const all = Object.assign({ _template: 'box', _captcha: 'false' }, fields, { 'مع تحيات': SIGN });
   let body, headers = { Accept: 'application/json' };
-  if (file) { body = new FormData(); Object.keys(all).forEach(k => body.append(k, String(all[k]))); body.append('attachment', file.blob, file.name); }
+  if (file) return postFileMail(to, Object.assign({ _template: 'basic' }, all, { _template: 'basic' }), file);
+  if (false) {}
   else { body = JSON.stringify(all); headers['Content-Type'] = 'application/json'; }
   let res;
   try { res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(to), { method: 'POST', signal: ctrl.signal, headers: headers, body: body }); }
@@ -601,7 +619,7 @@ async function sendMail(to, fields, file) {   // إرسال إيميل عبر خ
 const OUTBOX = 'rax3d_outbox';
 function outbox(v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(OUTBOX) || '[]'); localStorage.setItem(OUTBOX, JSON.stringify(v.slice(-30))); } catch (e) { return []; } }
 async function notify(subject, fields, file) {
-  const to = mailTo(), f = Object.assign({ _subject: subject }, fields || {}, { 'الوقت': nowStr() });
+  const to = mailTo(), f = Object.assign({ _subject: subject }, fields || {}, file ? {} : { 'الوقت': nowStr() });
   try { const r = await sendMail(to, f, file); if (r === 'activate') return 'activate'; flushOutbox(); return 'sent'; }
   catch (e) { if (!file) { const o = outbox(); o.push({ to: to, f: f }); outbox(o); } return 'fail'; }
 }
@@ -1288,7 +1306,7 @@ function fileSubject(name) {
 function mailFile(blob, name, subject, fields) {   // نسخة من أي ملف يحفظه الدعم الفني تنرسل للإيميل
   if (loadDb().role !== 'admin') return;
   mailedFiles.add(name);
-  notify(subject || fileSubject(name), Object.assign({ 'الملف': name }, fields || {}), { blob: blob, name: name })
+  notify(subject || fileSubject(name), { 'الرسالة': (fields && fields.msg) || ('📎 الملف مرفق: ' + name) }, { blob: blob, name: name })
     .then(r => toast(r === 'sent' ? '📧 انرسلت نسخة لإيميلك' : r === 'activate' ? '📧 فعّل إيميلك أول مرة (رسالة FormSubmit)' : '⚠️ ما انرسل الإيميل — تأكد من الإنترنت'));
 }
 function deliverFile(blob, name) {
@@ -1337,7 +1355,7 @@ function mailInvoice(id, kind) {
     const r = loadDb().log.slice().reverse().find(x => String(id).indexOf(':') > 0 ? rk(x) === id : String(x.num) === String(id)); if (!r) return;
     const subj = (kind === 'edit' ? '✏️ تعديل الفاتورة رقم ' : '🧾 فاتورة جديدة رقم ') + r.num + (r.client ? ' — ' + r.client : '') + ' — ' + fmt(r.total) + ' ريال';
     if (err) { notify(subj, invFields(r)); return; }
-    mailFile(blob, name, subj, invFields(r));
+    mailFile(blob, name, subj, { msg: '📎 مرفق ملف الفاتورة رقم ' + r.num + ' بصيغة PDF' });
   });
 }
 function savePdf(num) {
