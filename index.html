@@ -141,6 +141,10 @@ input[type=number]{direction:ltr;text-align:center}
 .hbtn i{position:absolute;top:-7px;left:-7px;background:var(--bad);color:#fff;border-radius:999px;min-width:19px;height:19px;font-size:11px;font-style:normal;line-height:19px;text-align:center;padding:0 5px}
 [hidden]{display:none!important}
 .partner .adm{display:none!important}
+.st{width:100%;border-collapse:collapse;font-size:13px}
+.st th{color:var(--gold);font-weight:500;text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}
+.st td{padding:6px 4px;border-bottom:1px solid #1b1b1b;direction:rtl}
+.st td:not(:first-child),.st th:not(:first-child){text-align:center}
 .sheet .box{max-height:90vh;overflow-y:auto;text-align:right}
 .sheet h2,.sheet .tot{text-align:center}
 .lock{overflow-y:auto}
@@ -415,7 +419,7 @@ textarea{width:100%;background:var(--field);border:1px solid var(--line);border-
 <div class="toast" id="toast" hidden></div>
 
 <script>
-const APP_VERSION = '28';
+const APP_VERSION = '31';
 // ================= RAX3D — v25: حسابين + الدعم الفني + تحديث تلقائي =================
 // كل البيانات محفوظة داخل الجوال. لا Google ولا إيميل.
 const DB_KEY = 'rax3d_db';
@@ -1060,10 +1064,25 @@ function jpegToPdf(jpeg, wPt, hPt) {
     'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF'));
   return new Blob(parts, { type: 'application/pdf' });
 }
-function invoicePdf(r) {
+function drawStamp(cv, label, sub) {   // ختم أحمر قطري من زاوية لزاوية
+  const c = cv.getContext('2d'), W = cv.width, H = cv.height, F = '"IBM Plex Sans Arabic","Geeza Pro",Tahoma,Arial,sans-serif';
+  const diag = Math.hypot(W, H), ang = -Math.atan2(H, W), RED = 'rgba(205,28,28,0.78)';
+  c.save(); c.translate(W / 2, H / 2); c.rotate(ang);
+  c.strokeStyle = RED; c.lineWidth = 7;   // خط الختم من الزاوية للزاوية
+  c.beginPath(); c.moveTo(-diag / 2 + 40, -165); c.lineTo(diag / 2 - 40, -165); c.moveTo(-diag / 2 + 40, 165); c.lineTo(diag / 2 - 40, 165); c.stroke();
+  c.lineWidth = 3; c.beginPath(); c.moveTo(-diag / 2 + 40, -148); c.lineTo(diag / 2 - 40, -148); c.moveTo(-diag / 2 + 40, 148); c.lineTo(diag / 2 - 40, 148); c.stroke();
+  c.fillStyle = RED; c.textAlign = 'center'; c.textBaseline = 'middle'; c.direction = 'rtl';
+  let size = 170; c.font = '700 ' + size + 'px ' + F;
+  while (c.measureText(label).width > diag * 0.58 && size > 60) { size -= 10; c.font = '700 ' + size + 'px ' + F; }
+  c.fillText(label, 0, -30);
+  if (sub) { c.font = '700 40px ' + F; c.fillText(sub, 0, 98); }
+  c.restore();
+}
+function invoicePdf(r, stamp) {
   const fontReady = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('700 30px "IBM Plex Sans Arabic"'), document.fonts.load('400 24px "IBM Plex Sans Arabic"')]).catch(() => {}) : Promise.resolve();
   return Promise.all([getLogo(), fontReady]).then(([logo]) => {
-    const cv = drawInvoice(r, logo), url = cv.toDataURL('image/jpeg', 0.9), bin = atob(url.split(',')[1]);
+    const cv = drawInvoice(r, logo); if (stamp) drawStamp(cv, stamp.label, stamp.sub);
+    const url = cv.toDataURL('image/jpeg', 0.9), bin = atob(url.split(',')[1]);
     const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return { blob: jpegToPdf({ bytes, w: cv.width, h: cv.height }, 595.28, 841.89), preview: url };
   });
@@ -1229,6 +1248,36 @@ function renderLog() {
 }
 $('q').oninput = renderLog;
 
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const monthName = ym => { const [yy, mm] = String(ym).split('-'); return AR_MONTHS[+mm - 1] + ' ' + yy; };
+function lastMonths(n) {   // آخر n أشهر (حتى لو ما فيها مبيعات)
+  const [y, m] = DATA.today.split('-').map(Number), out = [];
+  for (let k = n - 1; k >= 0; k--) { const d = new Date(y, m - 1 - k, 1); out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); }
+  return out;
+}
+function monthTotals(ym) { const rs = DATA.log.filter(r => String(r.date).startsWith(ym)); return { n: rs.length, sales: rs.reduce((a, r) => a + (+r.total || 0), 0), profit: rs.reduce((a, r) => a + (+r.profit || 0), 0) }; }
+function chartSvg(labels, a, b) {   // أعمدة: المبيعات (ذهبي) وصافي الربح (أخضر)
+  const W = 340, H = 190, top = 22, base = 166, n = labels.length, slot = (W - 20) / n, bw = Math.min(18, slot / 2 - 4);
+  const max = Math.max(1, ...a, ...b), hgt = v => Math.max(0, v) / max * (base - top);
+  let g = `<line x1="10" y1="${base}" x2="${W - 10}" y2="${base}" stroke="#2a2a2a"/>`;
+  for (let k = 1; k <= 3; k++) { const yy = base - (base - top) * k / 3; g += `<line x1="10" y1="${yy}" x2="${W - 10}" y2="${yy}" stroke="#1d1d1d"/>`; }
+  labels.forEach((l, i) => {
+    const cx = W - 10 - slot * (i + 0.5), x1 = cx + 1, x2 = cx - bw - 1, ha = hgt(a[i]), hb = hgt(b[i]);
+    g += `<rect x="${x1}" y="${base - ha}" width="${bw}" height="${ha}" rx="3" fill="#E0B64A"/>`;
+    g += `<rect x="${x2}" y="${base - hb}" width="${bw}" height="${hb}" rx="3" fill="${b[i] < 0 ? '#ff7b6b' : '#7fcf8a'}"/>`;
+    if (a[i]) g += `<text x="${x1 + bw / 2}" y="${base - ha - 4}" font-size="9" fill="#f2efe6" text-anchor="middle">${fmtN(a[i])}</text>`;
+    if (b[i]) g += `<text x="${x2 + bw / 2}" y="${base - hb - 4}" font-size="9" fill="${b[i] < 0 ? '#ff7b6b' : '#9a968c'}" text-anchor="middle">${fmtN(b[i])}</text>`;
+    g += `<text x="${cx}" y="${base + 16}" font-size="10" fill="#9a968c" text-anchor="middle">${esc(l)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="رسم بياني للمبيعات وصافي الربح" style="display:block;font-family:inherit">${g}</svg>`;
+}
+function statsChartHtml() {
+  const ms = lastMonths(6), t = ms.map(monthTotals);
+  const rows = ms.slice().reverse().map((mo, i) => { const v = t[ms.length - 1 - i]; return `<tr><td>${monthName(mo)}</td><td>${v.n}</td><td>${fmt(v.sales)}</td><td style="color:${v.profit < 0 ? 'var(--bad)' : 'inherit'}">${fmt(v.profit)}</td></tr>`; }).join('');
+  return `<div class="period"><h3>📊 المبيعات وصافي الربح — آخر 6 أشهر</h3>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--mute);margin:-4px 0 6px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#E0B64A;margin-left:5px"></i>المبيعات</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7fcf8a;margin-left:5px"></i>صافي الربح</span></div>${chartSvg(ms.map(mo => AR_MONTHS[+mo.split('-')[1] - 1]), t.map(v => r2(v.sales)), t.map(v => r2(v.profit)))}
+    <div style="overflow-x:auto;margin-top:10px"><table class="st"><thead><tr><th>الشهر</th><th>الفواتير</th><th>المبيعات</th><th>صافي الربح</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
 function renderStats() {
   const t = DATA.today, [y, m] = t.split('-');
   const d0 = new Date(t + 'T00:00:00'); d0.setDate(d0.getDate() - 6);
@@ -1240,7 +1289,7 @@ function renderStats() {
     ['هذه السنة', r => r.date.startsWith(y)],
     ['الإجمالي', () => true]
   ];
-  $('statList').innerHTML = periods.map(([name, f]) => {
+  $('statList').innerHTML = statsChartHtml() + periods.map(([name, f]) => {
     const rs = DATA.log.filter(f), s = k => rs.reduce((a, r) => a + r[k], 0);
     return `<div class="period"><h3>${name}</h3><div class="kv">
       <div>الفواتير<b>${rs.length}</b></div><div>القطع<b>${s('qty')}</b></div><div>المبيعات<b>${fmt(s('total'))}</b></div>
@@ -1274,25 +1323,60 @@ function makeXlsx(sheets) {
   const col = i => { let s = ''; i++; while (i) { s = String.fromCharCode(65 + (i - 1) % 26) + s; i = Math.floor((i - 1) / 26); } return s; };
   const files = [
     ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
-      sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'],
+      sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
+      sheets.map((sh, i) => sh.chart ? `<Override PartName="/xl/drawings/drawing${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/charts/chart${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>` : '').join('') + '</Types>'],
     ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
     ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
       sheets.map((sh, i) => `<sheet name="${x(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
       `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
-    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.##"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FFE0B64A"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF111111"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf/><xf fontId="1" fillId="2" applyFont="1" applyFill="1"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs></styleSheet>']
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="2"><font><sz val="11"/><name val="Arial"/><family val="2"/><charset val="178"/></font><font><b/><sz val="11"/><color rgb="FFE0B64A"/><name val="Arial"/><family val="2"/><charset val="178"/></font></fonts>' +
+      '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF111111"/></patternFill></fill></fills>' +
+      '<borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1"><alignment readingOrder="2"/></xf>' +
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" readingOrder="2"/></xf>' +
+      '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/>' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="right" readingOrder="2"/></xf>' +
+      '<xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/></cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>']
   ];
   sheets.forEach((sh, i) => {
     const rows = sh.rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) => {
       const ref = col(ci) + (ri + 1), st = (sh.head || [0]).includes(ri) ? ' s="1"' : '';
       if (v === '' || v === null || v === undefined) return st ? `<c r="${ref}"${st}/>` : '';
-      if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${st || ' s="2"'}><v>${v}</v></c>`;
-      return `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+      if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${st || (Number.isInteger(v) ? ' s="2"' : ' s="4"')}><v>${v}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"${st || ' s="3"'}><is><t xml:space="preserve">${x(v)}</t></is></c>`;
     }).join('') + '</row>').join('');
-    files.push([`xl/worksheets/sheet${i + 1}.xml`, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    if (sh.chart) {
+      const n = i + 1, ch = sh.chart, sq = `'${sh.name.replace(/'/g, "''")}'`;
+      const cats = ch.rows.map(r => sh.rows[r][0]);
+      const strCache = arr => `<c:strCache><c:ptCount val="${arr.length}"/>` + arr.map((v, k) => `<c:pt idx="${k}"><c:v>${x(v)}</c:v></c:pt>`).join('') + '</c:strCache>';
+      const r0 = ch.rows[0] + 1, r1 = ch.rows[ch.rows.length - 1] + 1, run = t => `<a:r><a:rPr lang="ar-SA" sz="1000"><a:latin typeface="Arial"/><a:cs typeface="Arial"/></a:rPr><a:t>${x(t)}</a:t></a:r>`;
+      const txPr = '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1000"><a:latin typeface="Arial"/><a:cs typeface="Arial"/></a:defRPr></a:pPr><a:endParaRPr lang="ar-SA"/></a:p></c:txPr>';
+      const ser = ch.series.map((se, k) => `<c:ser><c:idx val="${k}"/><c:order val="${k}"/><c:tx><c:strRef><c:f>${sq}!$${col(se.col)}$1</c:f>${strCache([sh.rows[0][se.col]])}</c:strRef></c:tx>` +
+        `<c:spPr><a:solidFill><a:srgbClr val="${se.color}"/></a:solidFill></c:spPr><c:invertIfNegative val="0"/>` +
+        `<c:dLbls><c:numFmt formatCode="#,##0" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${txPr}<c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>` +
+        `<c:cat><c:strRef><c:f>${sq}!$A$${r0}:$A$${r1}</c:f>${strCache(cats)}</c:strRef></c:cat>` +
+        `<c:val><c:numRef><c:f>${sq}!$${col(se.col)}$${r0}:$${col(se.col)}$${r1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${ch.rows.length}"/>` +
+        ch.rows.map((r, k) => `<c:pt idx="${k}"><c:v>${Number(sh.rows[r][se.col]) || 0}</c:v></c:pt>`).join('') + '</c:numCache></c:numRef></c:val></c:ser>').join('');
+      files.push([`xl/charts/chart${n}.xml`, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:roundedCorners val="0"/><c:chart>' +
+        `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1300" b="1"/></a:pPr>${run(ch.title).replace('sz="1000"', 'sz="1300" b="1"')}</a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>` +
+        `<c:plotArea><c:layout/><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>${ser}<c:gapWidth val="70"/><c:overlap val="-10"/><c:axId val="5001"/><c:axId val="5002"/></c:barChart>` +
+        `<c:catAx><c:axId val="5001"/><c:scaling><c:orientation val="maxMin"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/>${txPr}<c:crossAx val="5002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>` +
+        `<c:valAx><c:axId val="5002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="r"/><c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="E5E5E5"/></a:solidFill></a:ln></c:spPr></c:majorGridlines><c:numFmt formatCode="#,##0" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>${txPr}<c:crossAx val="5001"/><c:crosses val="max"/><c:crossBetween val="between"/></c:valAx></c:plotArea>` +
+        `<c:legend><c:legendPos val="b"/><c:overlay val="0"/>${txPr}</c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`]);
+      const a = ch.at || { col: 0, row: sh.rows.length + 1, w: 7, h: 18 };
+      files.push([`xl/drawings/drawing${n}.xml`, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+        `<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>${a.col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>${a.col + a.w}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.row + a.h}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+        `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="2" name="Chart ${n}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>`]);
+      files.push([`xl/drawings/_rels/drawing${n}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${n}.xml"/></Relationships>`]);
+      files.push([`xl/worksheets/_rels/sheet${n}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`]);
+    }
+    files.push([`xl/worksheets/sheet${i + 1}.xml`, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
       (sh.cols ? '<cols>' + sh.cols.map((w, ci) => `<col min="${ci + 1}" max="${ci + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>' : '') +
-      `<sheetData>${rows}</sheetData></worksheet>`]);
+      `<sheetData>${rows}</sheetData>` + (sh.chart ? '<drawing r:id="rId1"/>' : '') + '</worksheet>']);
   });
   return zip(files);
 }
@@ -1394,12 +1478,14 @@ $('dlStats').onclick = () => {
   const L = DATA.log;
   const periods = [line('اليوم', L.filter(r => r.date === t)), line('آخر 7 أيام', L.filter(r => r.date >= wk && r.date <= t)),
     line('هذا الشهر', L.filter(r => r.date.startsWith(y + '-' + m))), line('هذه السنة', L.filter(r => r.date.startsWith(y))), line('الإجمالي', L)];
-  const months = [...new Set(L.map(r => String(r.date).slice(0, 7)))].sort().reverse().map(mo => line(mo, L.filter(r => String(r.date).startsWith(mo))));
+  const months = [...new Set(L.map(r => String(r.date).slice(0, 7)).concat(lastMonths(6)))].sort().map(mo => line(monthName(mo), L.filter(r => String(r.date).startsWith(mo))));
   const g = DATA.goal || {};
   const extra = [[], ['هدف المبيعات', g.goal || ''], ['الخسارة عن السعر المقترح', g.gap || 0], ['تاريخ التقرير', t]];
   const blob = makeXlsx([
-    { name: 'الإحصائيات', rows: [head].concat(periods, extra), cols: [26, 10, 10, 13, 12, 13, 15] },
-    { name: 'حسب الشهر', rows: [['الشهر'].concat(head.slice(1))].concat(months), cols: [12, 10, 10, 13, 12, 13, 15] }
+    { name: 'الإحصائيات', rows: [head].concat(periods, extra), cols: [26, 10, 10, 13, 12, 13, 15],
+      chart: { title: 'المبيعات وصافي الربح حسب الفترة', rows: [1, 2, 3, 4, 5], series: [{ col: 3, color: 'E0B64A' }, { col: 5, color: '4CAF50' }] } },
+    { name: 'حسب الشهر', rows: [['الشهر'].concat(head.slice(1))].concat(months), cols: [16, 10, 10, 13, 12, 13, 15],
+      chart: { title: 'المبيعات وصافي الربح حسب الشهر', rows: months.map((_, k) => k + 1), series: [{ col: 3, color: 'E0B64A' }, { col: 5, color: '4CAF50' }] } }
   ]);
   deliverFile(blob, 'إحصائيات RAX3D ' + t + '.xlsx').catch(e => alert('تعذّر الحفظ: ' + ((e && e.message) || e)));
 };
@@ -1801,7 +1887,12 @@ $('edDel').onclick = () => {
   const old = DATA.log.find(x => rk(x) === ED.key);
   google.script.run
     .withSuccessHandler(r => { btn.disabled = false; $('edSheet').classList.remove('on'); if (r.warn) alert(r.warn); toast('🗑️ انحذفت الفاتورة ' + r.num + ' وتعدّل الترقيم'); mailedFiles.clear();
-      if (old) notify('🗑️ حذف الفاتورة رقم ' + old.num + (old.client ? ' — ' + old.client : ''), Object.assign(invFields(old), { 'ملاحظة': 'الفواتير اللي بعدها نزلت رقم واحد' }));
+      if (old) {   // نسخة PDF من الفاتورة المحذوفة وعليها ختم «تم الحذف»
+        const subj = '🗑️ حذف الفاتورة رقم ' + old.num + (old.client ? ' — ' + old.client : '');
+        invoicePdf(old, { label: 'تم الحذف', sub: 'تاريخ الحذف ' + todayStr() })
+          .then(o => mailFile(o.blob, safeName('فاتورة ' + old.num + (old.client ? ' - ' + old.client : '') + ' - محذوفة.pdf'), subj, { msg: '🗑️ مرفق نسخة الفاتورة رقم ' + old.num + ' المحذوفة بصيغة PDF' }))
+          .catch(() => notify(subj, { 'الرسالة': 'تم حذف الفاتورة رقم ' + old.num }));
+      }
       load(); })
     .withFailureHandler(e => { btn.disabled = false; if (pinError(e)) return; setMsg('edMsg', false, errTxt(e)); })
     .deleteInvoice({ key: ED.key }, PIN);
